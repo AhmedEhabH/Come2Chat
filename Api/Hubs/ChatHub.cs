@@ -35,14 +35,35 @@ namespace Api.Hubs
             await DisplayOnlineUsers();
         }
 
-        public async Task RecieveMessage(MessageDto message)
+        public async Task ReceiveMessage(MessageDto message)
         {
             await Clients.Groups("Come2Chat").SendAsync("NewMessage", message);
         }
 
         public async Task CreatePrivateChat(MessageDto message)
         {
+            var privateGroupName = GetPrivateGroupName(message.From, message.To);
+            await Groups.AddToGroupAsync(Context.ConnectionId, privateGroupName);
+            var toConnectionId = _chatService.GetConnectionIdByUser(message.To);
+            await Groups.AddToGroupAsync(toConnectionId, privateGroupName);
+            // opening private chatbox for the other end user
+            await Clients.Clients(toConnectionId).SendAsync("OpenPrivateChat", message);
+        }
 
+        public async Task ReceivePrivateMessage(MessageDto message)
+        {
+            var privateGroupName = GetPrivateGroupName(message.From, message.To);
+            await Clients.Group(privateGroupName).SendAsync("NewPrivateMessage", message);
+        }
+
+        public async Task RemovePrivateChat(string from, string to)
+        {
+            var privateGroupName = GetPrivateGroupName(from, to);
+            await Clients.Group(privateGroupName).SendAsync("ClosePrivateChat");
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, privateGroupName);
+
+            var toConnectionId = _chatService.GetConnectionIdByUser(to);
+            await Groups.RemoveFromGroupAsync(toConnectionId, privateGroupName);
         }
 
         private async Task DisplayOnlineUsers()
